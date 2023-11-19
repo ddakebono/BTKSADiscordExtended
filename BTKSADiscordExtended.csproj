@@ -1,0 +1,57 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net48</TargetFramework>
+        <Nullable>disable</Nullable>
+        <LangVersion>default</LangVersion>
+        <UseWPF>false</UseWPF>
+        <ImportWindowsDesktopTargets>true</ImportWindowsDesktopTargets>
+        <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+        <DoILRepack>false</DoILRepack>
+        <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+        <CopyLocalSatelliteAssemblies>false</CopyLocalSatelliteAssemblies>
+        <Platforms>AnyCPU</Platforms>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <Reference Include="0Harmony">
+        <HintPath>C:\Program Files (x86)\Steam\steamapps\common\ChilloutVR\MelonLoader\net35\0Harmony.dll</HintPath>
+      </Reference>
+      <Reference Include="Assembly-CSharp">
+        <HintPath>C:\Program Files (x86)\Steam\steamapps\common\ChilloutVR\ChilloutVR_Data\Managed\Assembly-CSharp.dll</HintPath>
+      </Reference>
+      <Reference Include="BTKUILib">
+        <HintPath>C:\Users\DDAkebono\Downloads\BTKUILib.dll</HintPath>
+      </Reference>
+      <Reference Include="cohtml.Net">
+        <HintPath>C:\Program Files (x86)\Steam\steamapps\common\ChilloutVR\ChilloutVR_Data\Managed\cohtml.Net.dll</HintPath>
+      </Reference>
+      <Reference Include="Cohtml.Runtime">
+        <HintPath>C:\Program Files (x86)\Steam\steamapps\common\ChilloutVR\ChilloutVR_Data\Managed\Cohtml.Runtime.dll</HintPath>
+      </Reference>
+      <Reference Include="MelonLoader">
+        <HintPath>C:\Program Files (x86)\Steam\steamapps\common\ChilloutVR\MelonLoader\net35\MelonLoader.dll</HintPath>
+      </Reference>
+      <Reference Include="UnityEngine">
+        <HintPath>C:\Program Files (x86)\Steam\steamapps\common\ChilloutVR\ChilloutVR_Data\Managed\UnityEngine.dll</HintPath>
+      </Reference>
+      <Reference Include="UnityEngine.CoreModule">
+        <HintPath>C:\Program Files (x86)\Steam\steamapps\common\ChilloutVR\ChilloutVR_Data\Managed\UnityEngine.CoreModule.dll</HintPath>
+      </Reference>
+    </ItemGroup>
+
+    <ItemGroup>
+      <PackageReference Include="DiscordRichPresence" Version="1.2.1.24" />
+      <PackageReference Include="ILRepack.Lib.MSBuild" Version="2.1.18" />
+    </ItemGroup>
+
+
+
+    <ItemGroup>
+      <None Remove="Images\BTKIcon.png" />
+      <EmbeddedResource Include="Images\BTKIcon.png" />
+      <None Remove="Images\Settings.png" />
+      <EmbeddedResource Include="Images\Settings.png" />
+    </ItemGroup>
+
+</Project>
