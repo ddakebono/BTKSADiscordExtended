@@ -23,3 +23,4 @@ Download the latest release from [Releases](https://github.com/ddakebono/BTKSASe
 ## Credits
 * [HerpDerpinstine/MelonLoader](https://github.com/HerpDerpinstine/MelonLoader)
 * [ChilloutVR](https://store.steampowered.com/app/661130/ChilloutVR/)
+* [Lachee/discord-rpc-csharp](https://github.com/Lachee/discord-rpc-csharp)
