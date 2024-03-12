@@ -52,7 +52,7 @@ public class DiscordExtended : MelonMod
     private bool _hasSetupUI;
 
     private static FieldInfo _discordEnabled = typeof(RichPresence).GetField("DiscordEnabled", BindingFlags.Static | BindingFlags.NonPublic);
-    private static FieldInfo _selfUsername = typeof(MetaPort).Assembly.GetType("ABI_RC.Core.Networking.AuthManager").GetField("username", BindingFlags.Static | BindingFlags.NonPublic);
+    private static PropertyInfo _selfUsername = typeof(MetaPort).Assembly.GetType("ABI_RC.Core.Networking.AuthManager").GetProperty("Username", BindingFlags.Static | BindingFlags.Public);
     private static MethodInfo _btkGetCreatePageAdapter;
 
     //Discord stuff
