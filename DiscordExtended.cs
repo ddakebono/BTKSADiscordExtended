@@ -8,7 +8,6 @@ using ABI_RC.Core.Networking;
 using ABI_RC.Core.Networking.API;
 using ABI_RC.Core.Networking.API.Responses;
 using ABI_RC.Core.Savior;
-using ABI_RC.Core.UI;
 using ABI_RC.Helpers;
 using ABI_RC.Systems.GameEventSystem;
 using BTKSAImmersiveHud.Config;
@@ -31,7 +30,7 @@ public static class BuildInfo
     public const string Name = "BTKSADiscordExtended";
     public const string Author = "DDAkebono";
     public const string Company = "BTK-Development";
-    public const string Version = "1.0.0";
+    public const string Version = "1.0.1";
     public const string DownloadLink = "https://github.com/ddakebono/BTKSADiscordExtended/releases";
 }
 
@@ -118,7 +117,7 @@ public class DiscordExtended : MelonMod
 
         _displayProfileButton.OnConfigUpdated += o => { UpdatePresence(null, _hasData); };
 
-        CVRGameEventSystem.VRModeSwitch.OnPostSwitch.AddListener((b, camera) => { UpdatePresence(null, _hasData); });
+        CVRGameEventSystem.VRModeSwitch.OnPostSwitch.AddListener(_ => { UpdatePresence(null, _hasData); });
 
         OnUserLogin += () =>
         {
@@ -347,18 +346,13 @@ public class DiscordExtended : MelonMod
     }
 }
 
-[HarmonyPatch]
+[HarmonyPatch(typeof(LoginRoom))]
 class AuthManagerPatches
 {
-    static MethodBase TargetMethod()
+    [HarmonyPatch("OnAuthenticationSuccess")]
+    [HarmonyPostfix]
+    private static void OnAuthSuccess()
     {
-        return typeof(MetaPort).Assembly.GetType("ABI_RC.Core.Networking.AuthManager").GetMethod("AuthResultHandle", BindingFlags.NonPublic | BindingFlags.Static);
-    }
-
-    private static void Postfix(AuthUIManager.AuthResultType type)
-    {
-        if (type != AuthUIManager.AuthResultType.LoggedInOk) return;
-
         DiscordExtended.OnUserLogin?.Invoke();
     }
 }

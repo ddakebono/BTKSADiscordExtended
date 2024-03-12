@@ -21,7 +21,7 @@
         <HintPath>C:\Program Files (x86)\Steam\steamapps\common\ChilloutVR\ChilloutVR_Data\Managed\Assembly-CSharp.dll</HintPath>
       </Reference>
       <Reference Include="BTKUILib">
-        <HintPath>C:\Users\DDAkebono\Downloads\BTKUILib.dll</HintPath>
+        <HintPath>C:\Program Files (x86)\Steam\steamapps\common\ChilloutVR\Mods\BTKUILib.dll</HintPath>
       </Reference>
       <Reference Include="cohtml.Net">
         <HintPath>C:\Program Files (x86)\Steam\steamapps\common\ChilloutVR\ChilloutVR_Data\Managed\cohtml.Net.dll</HintPath>
