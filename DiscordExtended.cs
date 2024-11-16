@@ -8,6 +8,7 @@ using ABI_RC.Core.Networking;
 using ABI_RC.Core.Networking.API;
 using ABI_RC.Core.Networking.API.Responses;
 using ABI_RC.Core.Savior;
+using ABI_RC.Core.Savior.SceneManagers;
 using ABI_RC.Helpers;
 using ABI_RC.Systems.GameEventSystem;
 using BTKSAImmersiveHud.Config;
@@ -30,7 +31,7 @@ public static class BuildInfo
     public const string Name = "BTKSADiscordExtended";
     public const string Author = "DDAkebono";
     public const string Company = "BTK-Development";
-    public const string Version = "1.0.2";
+    public const string Version = "1.0.3";
     public const string DownloadLink = "https://github.com/ddakebono/BTKSADiscordExtended/releases";
 }
 
@@ -52,7 +53,6 @@ public class DiscordExtended : MelonMod
     private bool _hasSetupUI;
 
     private static FieldInfo _discordEnabled = typeof(RichPresence).GetField("DiscordEnabled", BindingFlags.Static | BindingFlags.NonPublic);
-    private static PropertyInfo _selfUsername = typeof(MetaPort).Assembly.GetType("ABI_RC.Core.Networking.AuthManager").GetProperty("Username", BindingFlags.Static | BindingFlags.Public);
     private static MethodInfo _btkGetCreatePageAdapter;
 
     //Discord stuff
@@ -76,6 +76,7 @@ public class DiscordExtended : MelonMod
     private static DiscordRPC.Assets _assets;
     private static Timestamps _timestamps;
     private static Button _userHubButton;
+    private static string _username;
 
     public override void OnInitializeMelon()
     {
@@ -107,7 +108,6 @@ public class DiscordExtended : MelonMod
         }
 
         ApplyPatches(typeof(DiscordPatch));
-        ApplyPatches(typeof(AuthManagerPatches));
 
         _displayUsername.OnConfigUpdated += o => { UpdatePresence(null, _hasData); };
 
@@ -119,12 +119,18 @@ public class DiscordExtended : MelonMod
 
         CVRGameEventSystem.VRModeSwitch.OnPostSwitch.AddListener(_ => { UpdatePresence(null, _hasData); });
 
+        CVRGameEventSystem.Authentication.OnLogin.AddListener(response =>
+        {
+            _username = response.Username;
+            OnUserLogin?.Invoke();
+        });
+
         OnUserLogin += () =>
         {
             //Let's setup our user button!
             _userHubButton = new Button
             {
-                Label = $"{GetSelfUsername()}'s Profile",
+                Label = $"{_username}'s Profile",
                 Url = $"https://hub.abinteractive.net/social/profile?guid={MetaPort.Instance.ownerId}"
             };
         };
@@ -157,7 +163,7 @@ public class DiscordExtended : MelonMod
 
         var detailsVrState = MetaPort.Instance.isUsingVr ? "VR" : "Desktop";
 
-        _presence.Details = _displayUsername.BoolValue ? $"Chilling as {GetSelfUsername()} in {detailsVrState}" : $"Chilling in {detailsVrState}";
+        _presence.Details = _displayUsername.BoolValue ? $"Chilling as {_username} in {detailsVrState}" : $"Chilling in {detailsVrState}";
         _presence.State = "Exploring worlds or starting game.";
         _presence.Assets = _defaultAssets;
         _presence.Party = null;
@@ -297,7 +303,7 @@ public class DiscordExtended : MelonMod
     {
         var detailsVrState = MetaPort.Instance.isUsingVr ? "VR" : "Desktop";
 
-        _presence.Details = _displayUsername.BoolValue ? $"Chilling as {GetSelfUsername()} in {detailsVrState}" : $"Chilling in {detailsVrState}";
+        _presence.Details = _displayUsername.BoolValue ? $"Chilling as {_username} in {detailsVrState}" : $"Chilling in {detailsVrState}";
         _presence.State = DisplayWorldDetails ? _lastRPMsg.InstanceName : "In Private Instance";
 
         _party ??= new Party();
@@ -335,25 +341,9 @@ public class DiscordExtended : MelonMod
         }
     }
 
-    private static string GetSelfUsername()
-    {
-        return (string)_selfUsername.GetValue(null);
-    }
-
     private static bool GetDiscordEnabledState()
     {
         return (bool)_discordEnabled.GetValue(null);
-    }
-}
-
-[HarmonyPatch(typeof(LoginRoom))]
-class AuthManagerPatches
-{
-    [HarmonyPatch("OnAuthenticationSuccess")]
-    [HarmonyPostfix]
-    private static void OnAuthSuccess()
-    {
-        DiscordExtended.OnUserLogin?.Invoke();
     }
 }
 
