@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using System.Reflection.Emit;
 using System.Threading.Tasks;
 using ABI_RC.Core.InteractionSystem;
 using ABI_RC.Core.Networking;
@@ -21,7 +22,9 @@ using DiscordRPC.Message;
 using HarmonyLib;
 using MelonLoader;
 using Semver;
+using Steamworks;
 using Button = DiscordRPC.Button;
+using OpCodes = System.Reflection.Emit.OpCodes;
 using RichPresence = ABI_RC.Core.Networking.RichPresence;
 
 namespace BTKSADiscordExtended;
@@ -31,7 +34,7 @@ public static class BuildInfo
     public const string Name = "BTKSADiscordExtended";
     public const string Author = "DDAkebono";
     public const string Company = "BTK-Development";
-    public const string Version = "1.0.3";
+    public const string Version = "1.1.0";
     public const string DownloadLink = "https://github.com/ddakebono/BTKSADiscordExtended/releases";
 }
 
@@ -42,17 +45,20 @@ public class DiscordExtended : MelonMod
     internal static Action OnUserLogin;
     internal static readonly List<IBTKBaseConfig> BTKConfigs = new();
 
-    private WorldDetailsResponse _lastWorldDetails;
-    private RichPresenceInstance_t _lastRPMsg;
+    private static WorldDetailsResponse _lastWorldDetails;
+    private static RichPresenceInstance_t _lastRPMsg;
 
-    private BTKBoolConfig _displayWorldDetails = new(nameof(DiscordExtended), "Display World Details","Displays world information (name, privacy mode, player count, world image) of Friends Only or lower privacy instances, if this is off private instance details are hidden regardless of the private details setting",true, null, false);
-    private BTKBoolConfig _displayWorldPrivate = new(nameof(DiscordExtended), "Display Private World Details","Displays world information (name, privacy mode, player count, world image) while in OwnerCanInvite and EveryoneCanInvite instances", false, null, false);
-    private BTKBoolConfig _displayUsername = new(nameof(DiscordExtended), "Display Username", "Displays your username on the rich presence", false, null, false);
-    private BTKBoolConfig _displayProfileButton = new(nameof(DiscordExtended), "Display Profile Button", "Displays a button on the rich presence that links to your profile on the ABI Hub", false,null, false);
+    private static BTKBoolConfig _displayWorldDetails = new(nameof(DiscordExtended), "Display World Details","Displays world information (name, privacy mode, player count, world image) of Friends Only or lower privacy instances, if this is off private instance details are hidden regardless of the private details setting",true, null, false);
+    private static BTKBoolConfig _displayWorldPrivate = new(nameof(DiscordExtended), "Display Private World Details","Displays world information (name, privacy mode, player count, world image) while in OwnerCanInvite and EveryoneCanInvite instances", false, null, false);
+    private static BTKBoolConfig _displayUsername = new(nameof(DiscordExtended), "Display Username", "Displays your username on the rich presence", false, null, false);
+    private static BTKBoolConfig _displayProfileButton = new(nameof(DiscordExtended), "Display Profile Button", "Displays a button on the rich presence that links to your profile on the ABI Hub", false,null, false);
+    private static BTKBoolConfig _modifySteamRichPresence = new(nameof(DiscordExtended), "Modify Steam Presence", "Applies similar changes to Steam Rich Presence", true, "You must restart to apply this change!", false);
+
 
     private bool _hasSetupUI;
 
     private static FieldInfo _discordEnabled = typeof(RichPresence).GetField("DiscordEnabled", BindingFlags.Static | BindingFlags.NonPublic);
+    private static FieldInfo _steamEnabled = typeof(RichPresence).GetField("SteamEnabled", BindingFlags.Static | BindingFlags.NonPublic);
     private static MethodInfo _btkGetCreatePageAdapter;
 
     //Discord stuff
@@ -108,14 +114,32 @@ public class DiscordExtended : MelonMod
         }
 
         ApplyPatches(typeof(DiscordPatch));
+        if(_modifySteamRichPresence.BoolValue)
+            ApplyPatches(typeof(RichPresencePatches));
 
-        _displayUsername.OnConfigUpdated += o => { UpdatePresence(null, _hasData); };
+        _displayUsername.OnConfigUpdated += o =>
+        {
+            UpdatePresence(null, _hasData);
+            ApplySteamPresence();
+        };
 
-        _displayWorldPrivate.OnConfigUpdated += o => { UpdatePresence(null, _hasData); };
+        _displayWorldPrivate.OnConfigUpdated += o =>
+        {
+            UpdatePresence(null, _hasData);
+            ApplySteamPresence();
+        };
 
-        _displayWorldDetails.OnConfigUpdated += o => { UpdatePresence(null, _hasData); };
+        _displayWorldDetails.OnConfigUpdated += o =>
+        {
+            UpdatePresence(null, _hasData);
+            ApplySteamPresence();
+        };
 
-        _displayProfileButton.OnConfigUpdated += o => { UpdatePresence(null, _hasData); };
+        _displayProfileButton.OnConfigUpdated += o =>
+        {
+            UpdatePresence(null, _hasData);
+            ApplySteamPresence();
+        };
 
         CVRGameEventSystem.VRModeSwitch.OnPostSwitch.AddListener(_ => { UpdatePresence(null, _hasData); });
 
@@ -161,10 +185,8 @@ public class DiscordExtended : MelonMod
             return;
         }
 
-        var detailsVrState = MetaPort.Instance.isUsingVr ? "VR" : "Desktop";
-
-        _presence.Details = _displayUsername.BoolValue ? $"Chilling as {_username} in {detailsVrState}" : $"Chilling in {detailsVrState}";
-        _presence.State = "Exploring worlds or starting game.";
+        _presence.Details = GetDisplayNameLine();
+        _presence.State = GetStatusLine(true);
         _presence.Assets = _defaultAssets;
         _presence.Party = null;
         _presence.Timestamps = null;
@@ -211,6 +233,55 @@ public class DiscordExtended : MelonMod
         }
 
         WorldDetailsResp(_lastWorldDetails);
+    }
+
+    internal static void ApplySteamPresence()
+    {
+        SteamFriends.ClearRichPresence();
+
+        if (!GetSteamEnabledState()) return;
+        if (!_hasData)
+        {
+            ApplySteamPresenceNone();
+            return;
+        }
+
+        SteamFriends.SetRichPresence("status", $"{GetDisplayNameLine()} | {GetStatusLine(false)}");
+        SteamFriends.SetRichPresence("gamestatus", GetStatusLine(false));
+        SteamFriends.SetRichPresence("steam_display", "#Status_Online");
+        SteamFriends.SetRichPresence("steam_player_group", _lastRPMsg.InstanceMeshId);
+        SteamFriends.SetRichPresence("steam_player_group_size", DisplayWorldDetails ? $"{_lastRPMsg.CurrentPlayers}" : "0");
+        SteamFriends.SetRichPresence("gamemode", DisplayWorldDetails ? _lastRPMsg.InstanceMissionName : "Private");
+        SteamFriends.SetRichPresence("worldname", DisplayWorldDetails ? _lastRPMsg.InstanceWorldName : "Private World");
+        SteamFriends.SetRichPresence("instancename", DisplayWorldDetails ? _lastRPMsg.InstanceName : "Private Instance");
+        SteamFriends.SetRichPresence("instanceprivacy", DisplayWorldDetails ? _lastRPMsg.InstancePrivacy : "Private");
+        SteamFriends.SetRichPresence("currentplayer", DisplayWorldDetails ? $"{_lastRPMsg.CurrentPlayers}" : "0");
+        SteamFriends.SetRichPresence("maxplayer", DisplayWorldDetails ? $"{_lastRPMsg.MaxPlayers}" : "0");
+    }
+
+    internal static void ApplySteamPresenceNone()
+    {
+        SteamFriends.ClearRichPresence();
+
+        if (!GetSteamEnabledState()) return;
+
+        SteamFriends.SetRichPresence("status", $"{GetDisplayNameLine()} | {GetStatusLine(true)}");
+        SteamFriends.SetRichPresence("gamestatus", GetStatusLine(true));
+        SteamFriends.SetRichPresence("steam_display", "#Status_Starting");
+    }
+
+    private static string GetDisplayNameLine()
+    {
+        if (_username == null)
+            return "Starting up!";
+
+        var detailsVrState = MetaPort.Instance.isUsingVr ? "VR" : "Desktop";
+        return _displayUsername.BoolValue ? $"Chilling as {_username} in {detailsVrState}" : $"Chilling in {detailsVrState}";
+    }
+
+    private static string GetStatusLine(bool clear)
+    {
+        return clear ? "Exploring worlds or starting game." : DisplayWorldDetails ? _lastRPMsg.InstanceName : "In Private Instance";
     }
 
     private void ApplyPatches(Type type)
@@ -301,10 +372,8 @@ public class DiscordExtended : MelonMod
 
     private void WorldDetailsResp(WorldDetailsResponse worldDetails)
     {
-        var detailsVrState = MetaPort.Instance.isUsingVr ? "VR" : "Desktop";
-
-        _presence.Details = _displayUsername.BoolValue ? $"Chilling as {_username} in {detailsVrState}" : $"Chilling in {detailsVrState}";
-        _presence.State = DisplayWorldDetails ? _lastRPMsg.InstanceName : "In Private Instance";
+        _presence.Details = GetDisplayNameLine();
+        _presence.State = GetStatusLine(false);
 
         _party ??= new Party();
         _party.ID = DisplayWorldDetails ? _lastRPMsg.InstanceMeshId : "";
@@ -331,7 +400,7 @@ public class DiscordExtended : MelonMod
         _client.SetPresence(_presence);
     }
 
-    private bool DisplayWorldDetails
+    private static bool DisplayWorldDetails
     {
         get
         {
@@ -344,6 +413,11 @@ public class DiscordExtended : MelonMod
     private static bool GetDiscordEnabledState()
     {
         return (bool)_discordEnabled.GetValue(null);
+    }
+
+    private static bool GetSteamEnabledState()
+    {
+        return (bool)_steamEnabled.GetValue(null);
     }
 }
 
@@ -390,5 +464,47 @@ class DiscordPatch
         DiscordExtended.Instance.ClearPresence();
 
         return false;
+    }
+}
+
+[HarmonyPatch(typeof(RichPresence))]
+class RichPresencePatches
+{
+    private static readonly MethodInfo SteamClearPresence = typeof(SteamFriends).GetMethod(nameof(SteamFriends.ClearRichPresence), BindingFlags.Static | BindingFlags.Public);
+    private static readonly MethodInfo ExtendedApplySteam = typeof(DiscordExtended).GetMethod(nameof(DiscordExtended.ApplySteamPresence), BindingFlags.Static | BindingFlags.NonPublic);
+    private static readonly MethodInfo ExtendedClearSteam = typeof(DiscordExtended).GetMethod(nameof(DiscordExtended.ApplySteamPresenceNone), BindingFlags.Static | BindingFlags.NonPublic);
+
+    [HarmonyTranspiler]
+    [HarmonyPatch("PopulateLastMessage")]
+    static IEnumerable<CodeInstruction> PopLastMsg(IEnumerable<CodeInstruction> instructions)
+    {
+        var matcher = new CodeMatcher(instructions);
+        matcher.MatchStartForward(new CodeMatch(OpCodes.Call, SteamClearPresence));
+        matcher.SetOperandAndAdvance(ExtendedApplySteam);
+        while (matcher.Instruction.opcode != OpCodes.Ret)
+        {
+            matcher.SetOpcodeAndAdvance(OpCodes.Nop);
+        }
+
+        var patched = matcher.InstructionEnumeration();
+
+        return patched;
+    }
+
+    [HarmonyTranspiler]
+    [HarmonyPatch("PopulateNone")]
+    static IEnumerable<CodeInstruction> PopNone(IEnumerable<CodeInstruction> instructions)
+    {
+        var matcher = new CodeMatcher(instructions);
+        matcher.MatchStartForward(new CodeMatch(OpCodes.Call, SteamClearPresence));
+        matcher.SetOperandAndAdvance(ExtendedClearSteam);
+        while (matcher.Instruction.opcode != OpCodes.Ret)
+        {
+            matcher.SetOpcodeAndAdvance(OpCodes.Nop);
+        }
+
+        var patched = matcher.InstructionEnumeration();
+
+        return patched;
     }
 }
